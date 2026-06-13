@@ -46,3 +46,6 @@ vite.config.ts.timestamp-*
 # WeChat Developer Tool
 project.private.config.json
 upload_*.log
+
+# Private Data
+information.txt
