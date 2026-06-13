@@ -6,7 +6,7 @@ const db = cloud.database()
 const _ = db.command
 
 // 全局配置测试冷静期，正式可改为 true
-const ENABLE_COOLDOWN = false;
+const ENABLE_COOLDOWN = true;
 
 exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext()

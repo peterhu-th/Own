@@ -4,7 +4,7 @@ const db = cloud.database()
 const _ = db.command
 
 // 测试时可关闭解绑冷静期
-const ENABLE_COOLDOWN = false
+const ENABLE_COOLDOWN = true
 
 exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext()
