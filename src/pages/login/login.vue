@@ -8,6 +8,7 @@
       <view v-else-if="!userStore.partnerId" class="bind-section">
         <text class="status-text">已登录</text>
         <view class="invite-code">我的邀请码：<text class="code" selectable>{{ userStore.inviteCode || '暂无' }}</text></view>
+        <button open-type="share" type="primary" plain class="share-btn">分享邀请给TA</button>
         <text class="tips">发送邀请码给 TA，或在此输入 TA 的邀请码绑定：</text>
         <input class="input-code" placeholder="输入 6 位邀请码" v-model="partnerCode" maxlength="6" />
         <button type="default" :loading="binding" @click="handleBind">绑定</button>
@@ -23,6 +24,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { onLoad, onShareAppMessage } from '@dcloudio/uni-app'
 import { useUserStore } from '@/stores/user'
 
 const userStore = useUserStore()
@@ -85,8 +87,21 @@ const goToIndex = () => {
   uni.switchTab({ url: '/pages/index/index' })
 }
 
+onLoad((options) => {
+  if (options.inviteCode) {
+    partnerCode.value = options.inviteCode
+  }
+})
+
 onMounted(() => {
   handleLogin()
+})
+
+onShareAppMessage(() => {
+  return {
+    title: '邀请你绑定日记',
+    path: `/pages/login/login?inviteCode=${userStore.inviteCode || ''}`
+  }
 })
 </script>
 
@@ -163,5 +178,13 @@ onMounted(() => {
   border: none !important;
   color: #999 !important;
   font-size: 28rpx;
+}
+.share-btn {
+  margin-top: -10rpx;
+  margin-bottom: 10rpx;
+  border-radius: 12rpx;
+  font-size: 32rpx;
+  height: 80rpx;
+  line-height: 80rpx;
 }
 </style>

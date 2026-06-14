@@ -32,12 +32,13 @@ async function handleLogin(openId) {
 
   if (!userRecord) {
     // 首次注册
+    const newCode = generateInviteCode()
     await usersCollection.add({
       data: {
         _id: openId,
         partner_id: null,
-        invite_code: generateInviteCode(),
-        invite_expire: Date.now() + 15 * 60 * 1000,
+        invite_code: newCode,
+        invite_expire: Date.now() + 24 * 60 * 60 * 1000,
         is_online: true,
         last_active_time: Date.now(),
         total_online_minutes: 0,
@@ -47,7 +48,7 @@ async function handleLogin(openId) {
         unbind_request_time: null
       }
     })
-    userRecord = { data: { partner_id: null, invite_code: generateInviteCode() } }
+    userRecord = { data: { _id: openId, partner_id: null, invite_code: newCode } }
     
     // 记录注册活动
     await logActivity(openId, 'diary', '注册了日记本', null)
@@ -66,7 +67,7 @@ async function handleLogin(openId) {
       await usersCollection.doc(openId).update({
         data: {
           invite_code: newCode,
-          invite_expire: Date.now() + 15 * 60 * 1000
+          invite_expire: Date.now() + 24 * 60 * 60 * 1000
         }
       })
       userRecord.data.invite_code = newCode
