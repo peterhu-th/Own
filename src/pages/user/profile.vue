@@ -24,8 +24,11 @@
     </view>
 
     <view class="activity-section">
-      <text class="section-title">动态记录</text>
-      <view class="timeline-list">
+      <view class="section-header" @click="toggleTimeline">
+        <text class="section-title">动态记录</text>
+        <text class="toggle-text">{{ isTimelineExpanded ? '收起 ▼' : '展开 ▶' }}</text>
+      </view>
+      <view class="timeline-list" v-show="isTimelineExpanded">
         <view 
           class="timeline-item" 
           v-for="(log, index) in activityLogs" 
@@ -42,9 +45,22 @@
         <view v-if="activityLogs.length === 0" class="empty">暂无动态</view>
       </view>
     </view>
-    
-    <button class="settings-btn" type="primary" plain @click="goToLiked">我赞过的</button>
-    <button class="settings-btn" type="default" @click="goToSettings">系统设置</button>
+    <view class="menu-list">
+      <view class="menu-item" @click="goToLiked" hover-class="menu-hover">
+        <view class="menu-item-left">
+          <text class="menu-icon">❤️</text>
+          <text class="menu-text">我赞过的日记</text>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
+      <view class="menu-item" @click="goToSettings" hover-class="menu-hover">
+        <view class="menu-item-left">
+          <text class="menu-icon">⚙️</text>
+          <text class="menu-text">系统设置</text>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -58,6 +74,11 @@ const userStore = useUserStore()
 const profileData = ref(null)
 const partnerData = ref(null)
 const activityLogs = ref([])
+const isTimelineExpanded = ref(false)
+
+const toggleTimeline = () => {
+  isTimelineExpanded.value = !isTimelineExpanded.value
+}
 
 const fetchProfile = async () => {
   try {
@@ -259,11 +280,19 @@ onPullDownRefresh(() => {
   box-shadow: 0 4rpx 16rpx rgba(0,0,0,0.05);
   margin-bottom: 40rpx;
 }
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
 .section-title {
   font-size: 32rpx;
   font-weight: bold;
-  margin-bottom: 20rpx;
-  display: block;
+}
+.toggle-text {
+  font-size: 26rpx;
+  color: #999;
 }
 .timeline-list {
   position: relative;
@@ -313,10 +342,44 @@ onPullDownRefresh(() => {
   color: #333;
   font-size: 28rpx;
 }
-.settings-btn {
+.menu-list {
   background: #fff;
+  border-radius: 20rpx;
+  padding: 0 30rpx;
+  margin-bottom: 40rpx;
+  box-shadow: 0 4rpx 16rpx rgba(0,0,0,0.05);
+}
+.menu-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 30rpx 0;
+  border-bottom: 1rpx solid #f5f5f5;
+  transition: opacity 0.2s;
+}
+.menu-item:last-child {
+  border-bottom: none;
+}
+.menu-item-left {
+  display: flex;
+  align-items: center;
+}
+.menu-icon {
+  font-size: 36rpx;
+  margin-right: 20rpx;
+}
+.menu-text {
+  font-size: 30rpx;
   color: #333;
-  margin-bottom: 20rpx;
+  font-weight: 500;
+}
+.menu-arrow {
+  color: #ccc;
+  font-size: 40rpx;
+  line-height: 1;
+}
+.menu-hover {
+  opacity: 0.7;
 }
 .empty {
   text-align: center;

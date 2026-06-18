@@ -41,7 +41,7 @@
 		{
 			"path": "pages/treeHole/treeHole",
 			"style": {
-				"navigationBarTitleText": "匿名树洞",
+				"navigationBarTitleText": "树洞",
 				"enablePullDownRefresh": true
 			}
 		},

@@ -83,12 +83,35 @@ async function handleGetDetail(openId, payload) {
   if (!id) return { success: false, msg: '参数错误' }
 
   try {
-    const withTimeout = (promise, ms = 2000) => Promise.race([
-      promise,
-      new Promise((_, reject) => setTimeout(() => reject(new Error('DB Query Timeout')), ms))
-    ])
+    const withTimeout = (promise, ms = 5000) => {
+      let timer;
+      const timeoutPromise = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('DB Query Timeout')), ms);
+      });
+      return Promise.race([promise, timeoutPromise]).finally(() => {
+        clearTimeout(timer);
+      });
+    }
 
     const diaryRes = await withTimeout(db.collection('Diaries').doc(id).get())
+    const diaryData = diaryRes.data
+
+    // 权限校验
+    let canAccess = false
+    if (diaryData.owner_id === openId) {
+      canAccess = true
+    } else if (diaryData.visibility === 'public') {
+      canAccess = true
+    } else {
+      const userRes = await withTimeout(db.collection('Users').doc(openId).get()).catch(() => null)
+      if (userRes && userRes.data && userRes.data.partner_id === diaryData.owner_id && diaryData.visibility !== 'private') {
+        canAccess = true
+      }
+    }
+
+    if (!canAccess) {
+      return { success: false, msg: '无权查看该日记' }
+    }
     
     // Use Promise.all to fetch comments and likes in parallel with timeout
     const [commentsRes, likeRes] = await Promise.all([
@@ -100,18 +123,18 @@ async function handleGetDetail(openId, payload) {
     
     let anonymous_name = null
     let avatar_color = null
-    if (diaryRes.data.visibility === 'public' && diaryRes.data.owner_id !== openId) {
-      const userRes = await withTimeout(db.collection('Users').doc(diaryRes.data.owner_id).get()).catch(() => null)
-      if (userRes && userRes.data) {
-        anonymous_name = userRes.data.anonymous_name || '某同学'
-        avatar_color = generateColorFromId(userRes.data._id)
+    if (diaryData.visibility === 'public' && diaryData.owner_id !== openId) {
+      const ownerRes = await withTimeout(db.collection('Users').doc(diaryData.owner_id).get()).catch(() => null)
+      if (ownerRes && ownerRes.data) {
+        anonymous_name = ownerRes.data.anonymous_name || '某同学'
+        avatar_color = generateColorFromId(ownerRes.data._id)
       }
     }
 
     return { 
       success: true, 
       diary: {
-        ...diaryRes.data,
+        ...diaryData,
         anonymous_name,
         avatar_color
       },
@@ -170,7 +193,8 @@ async function handlePublish(openId, payload) {
 }
 
 async function handleGetList(openId, payload) {
-  const { dateFilter, ownerFilter, page = 1, pageSize = 10 } = payload || {}
+  const { dateFilter, ownerFilter, cursor, pageSize: inputPageSize = 10 } = payload || {}
+  const pageSize = Math.min(inputPageSize, 20)
   
   // 先获取当前用户及其 partner_id
   const userRes = await db.collection('Users').doc(openId).get().catch(() => null)
@@ -201,33 +225,53 @@ async function handleGetList(openId, payload) {
     // dateFilter 格式预期为 'YYYY-MM-DD'
     const startOfDay = new Date(dateFilter + 'T00:00:00+08:00').getTime()
     const endOfDay = startOfDay + 24 * 60 * 60 * 1000 - 1
+    // 如果有 dateFilter，就直接用这个时间范围（不使用 cursor 分页以简化逻辑，按日取不太多）
     matchCondition.create_time = _.and(_.gte(startOfDay), _.lte(endOfDay))
+  } else if (cursor) {
+    matchCondition.create_time = _.lt(cursor)
   }
 
   const diariesRes = await db.collection('Diaries')
     .where(matchCondition)
     .orderBy('create_time', 'desc')
-    .skip((page - 1) * pageSize)
     .limit(pageSize)
     .get()
 
-  return { success: true, data: diariesRes.data }
+  const data = diariesRes.data
+  const nextCursor = data.length > 0 ? data[data.length - 1].create_time : null
+
+  return { success: true, data, nextCursor }
 }
 
 async function handleGetTreeHole(openId, payload) {
-  const { page = 1, pageSize = 10 } = payload || {}
+  const { cursor, pageSize: inputPageSize = 10 } = payload || {}
+  const pageSize = Math.min(inputPageSize, 20)
+  
+  const matchCondition = { visibility: 'public' }
+  if (cursor) {
+    matchCondition.create_time = _.lt(cursor)
+  }
   
   const diariesRes = await db.collection('Diaries')
-    .where({ visibility: 'public' })
+    .where(matchCondition)
     .orderBy('create_time', 'desc')
-    .skip((page - 1) * pageSize)
     .limit(pageSize)
+    .field({
+      _id: true,
+      content: true,
+      media_list: true,
+      audio_path: true,
+      create_time: true,
+      owner_id: true,
+      like_count: true
+    })
     .get()
     
   if (diariesRes.data.length === 0) {
-    return { success: true, data: [] }
+    return { success: true, data: [], nextCursor: null }
   }
   
+  const nextCursor = diariesRes.data[diariesRes.data.length - 1].create_time
   const ownerIds = [...new Set(diariesRes.data.map(d => d.owner_id))]
   const usersRes = await db.collection('Users').where({
     _id: _.in(ownerIds)
@@ -251,7 +295,7 @@ async function handleGetTreeHole(openId, payload) {
     }
   })
   
-  return { success: true, data: resultData }
+  return { success: true, data: resultData, nextCursor }
 }
 
 function generateColorFromId(id) {
@@ -295,17 +339,23 @@ async function handleToggleLike(openId, payload) {
 }
 
 async function handleGetLikedDiaries(openId, payload) {
-  const { page = 1, pageSize = 10 } = payload || {}
+  const { cursor, pageSize: inputPageSize = 10 } = payload || {}
+  const pageSize = Math.min(inputPageSize, 20)
+  
+  const matchCondition = { user_id: openId }
+  if (cursor) {
+    matchCondition.timestamp = _.lt(cursor)
+  }
   
   const likesRes = await db.collection('Likes')
-    .where({ user_id: openId })
+    .where(matchCondition)
     .orderBy('timestamp', 'desc')
-    .skip((page - 1) * pageSize)
     .limit(pageSize)
     .get()
     
-  if (likesRes.data.length === 0) return { success: true, data: [] }
+  if (likesRes.data.length === 0) return { success: true, data: [], nextCursor: null }
   
+  const nextCursor = likesRes.data[likesRes.data.length - 1].timestamp
   const diaryIds = likesRes.data.map(l => l.diary_id)
   const diariesRes = await db.collection('Diaries').where({
     _id: _.in(diaryIds)
@@ -316,7 +366,7 @@ async function handleGetLikedDiaries(openId, payload) {
   diariesRes.data.forEach(d => { diaryMap[d._id] = d })
   
   const sortedDiaries = diaryIds.map(id => diaryMap[id]).filter(Boolean)
-  return { success: true, data: sortedDiaries }
+  return { success: true, data: sortedDiaries, nextCursor }
 }
 
 async function handleGetOnThisDay(openId, payload) {
@@ -331,15 +381,15 @@ async function handleGetOnThisDay(openId, payload) {
     ])
   }
 
-  const now = new Date()
-  const currentYear = now.getFullYear()
-  const month = now.getMonth()
-  const date = now.getDate()
+  const now = new Date(Date.now() + 8 * 3600 * 1000)
+  const currentYear = now.getUTCFullYear()
+  const month = now.getUTCMonth()
+  const date = now.getUTCDate()
   
   const ranges = []
   for (let i = 1; i <= 10; i++) {
-    const start = new Date(currentYear - i, month, date, 0, 0, 0).getTime()
-    const end = new Date(currentYear - i, month, date, 23, 59, 59, 999).getTime()
+    const start = new Date(currentYear - i, month, date, 0, 0, 0).getTime() - 8 * 3600 * 1000
+    const end = new Date(currentYear - i, month, date, 23, 59, 59, 999).getTime() - 8 * 3600 * 1000
     ranges.push(_.and(_.gte(start), _.lte(end)))
   }
 

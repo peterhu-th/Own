@@ -19,7 +19,7 @@ import { ref } from 'vue'
 import { onShow, onReachBottom, onPullDownRefresh } from '@dcloudio/uni-app'
 
 const diaries = ref([])
-const page = ref(1)
+const cursor = ref(null)
 const hasMore = ref(true)
 const isLoading = ref(false)
 
@@ -27,7 +27,7 @@ const fetchLikedDiaries = async (reset = false) => {
   if (isLoading.value || (!hasMore.value && !reset)) return
   isLoading.value = true
   if (reset) {
-    page.value = 1
+    cursor.value = null
     hasMore.value = true
     diaries.value = []
   }
@@ -35,14 +35,15 @@ const fetchLikedDiaries = async (reset = false) => {
   try {
     const res = await uni.cloud.callFunction({
       name: 'diaryCloud',
-      data: { action: 'getLikedDiaries', payload: { page: page.value, pageSize: 10 } }
+      data: { action: 'getLikedDiaries', payload: { cursor: cursor.value, pageSize: 10 } }
     })
     if (res.result.success) {
-      if (res.result.data.length < 10) {
+      const newData = res.result.data || []
+      diaries.value.push(...newData)
+      cursor.value = res.result.nextCursor || null
+      if (!cursor.value || newData.length < 10) {
         hasMore.value = false
       }
-      diaries.value.push(...res.result.data)
-      page.value++
     }
   } finally {
     isLoading.value = false

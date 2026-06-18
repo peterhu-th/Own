@@ -11,6 +11,29 @@ exports.main = async (event, context) => {
     const { diary_id, content, reply_to_id, reply_to_user } = payload
     if (!content || !content.trim()) return { success: false, msg: '留言不能为空' }
 
+    // 校验对日记的访问权限
+    const diaryRes = await db.collection('Diaries').doc(diary_id).get().catch(() => null)
+    if (!diaryRes || !diaryRes.data) {
+      return { success: false, msg: '日记不存在' }
+    }
+    const diaryData = diaryRes.data
+
+    let canAccess = false
+    if (diaryData.owner_id === openId) {
+      canAccess = true
+    } else if (diaryData.visibility === 'public') {
+      canAccess = true
+    } else {
+      const userRes = await db.collection('Users').doc(openId).get().catch(() => null)
+      if (userRes && userRes.data && userRes.data.partner_id === diaryData.owner_id && diaryData.visibility !== 'private') {
+        canAccess = true
+      }
+    }
+
+    if (!canAccess) {
+      return { success: false, msg: '无权在该日记留言' }
+    }
+
     // Insert comment
     const res = await db.collection('Comments').add({
       data: {
@@ -40,7 +63,17 @@ exports.main = async (event, context) => {
     if (!id) return { success: false, msg: '参数错误' }
 
     const record = await db.collection('Comments').doc(id).get().catch(() => null)
-    if (!record || record.data.commenter_id !== openId) {
+    if (!record) return { success: false, msg: '记录不存在' }
+
+    let canDelete = record.data.commenter_id === openId
+    if (!canDelete) {
+      const diaryRes = await db.collection('Diaries').doc(record.data.diary_id).get().catch(() => null)
+      if (diaryRes && diaryRes.data.owner_id === openId) {
+        canDelete = true
+      }
+    }
+
+    if (!canDelete) {
       return { success: false, msg: '无权删除' }
     }
 

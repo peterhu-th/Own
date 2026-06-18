@@ -95,7 +95,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { onShow, onPullDownRefresh, onLoad, onReachBottom } from '@dcloudio/uni-app'
+import { onLoad, onShow, onPullDownRefresh, onReachBottom, onUnload } from '@dcloudio/uni-app'
 import { useUserStore } from '@/stores/user'
 import { formatWeChatTime } from '@/utils/time'
 
@@ -107,7 +107,7 @@ const ownerValues = ['all', 'me', 'partner']
 const selectedOwnerIdx = ref(0)
 const todayStr = ref('')
 
-const currentPage = ref(1)
+const cursor = ref(null)
 const pageSize = 10
 const hasMore = ref(true)
 const isLoading = ref(false)
@@ -117,6 +117,13 @@ const selectedExportIds = ref([])
 const pastDiaries = ref([])
 
 const innerAudioContext = uni.createInnerAudioContext()
+
+onUnload(() => {
+  if (innerAudioContext) {
+    innerAudioContext.stop()
+    innerAudioContext.destroy()
+  }
+})
 
 onLoad(() => {
   const d = new Date()
@@ -139,7 +146,7 @@ const clearFilter = () => {
 }
 
 const refreshList = () => {
-  currentPage.value = 1
+  cursor.value = null
   hasMore.value = true
   diaries.value = []
   fetchList()
@@ -157,19 +164,20 @@ const fetchList = async () => {
         payload: {
           dateFilter: selectedDate.value,
           ownerFilter: ownerValues[selectedOwnerIdx.value],
-          page: currentPage.value,
+          cursor: cursor.value,
           pageSize
         } 
       }
     })
     if (res.result.success) {
       const newData = res.result.data || []
-      if (currentPage.value === 1) {
+      if (!cursor.value) {
         diaries.value = newData
       } else {
         diaries.value.push(...newData)
       }
-      if (newData.length < pageSize) {
+      cursor.value = res.result.nextCursor || null
+      if (!cursor.value || newData.length < pageSize) {
         hasMore.value = false
       }
     }
@@ -313,7 +321,6 @@ onPullDownRefresh(() => {
 
 onReachBottom(() => {
   if (hasMore.value) {
-    currentPage.value++
     fetchList()
   }
 })

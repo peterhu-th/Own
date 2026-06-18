@@ -51,7 +51,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
 
 const content = ref('')
 const isBackdated = ref(false)
@@ -85,6 +85,13 @@ innerAudioContext.onEnded(() => {
 
 innerAudioContext.onStop(() => {
   isPlaying.value = false
+})
+
+onUnload(() => {
+  if (innerAudioContext) {
+    innerAudioContext.stop()
+    innerAudioContext.destroy()
+  }
 })
 
 onLoad((options) => {

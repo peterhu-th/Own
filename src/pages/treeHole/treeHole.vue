@@ -1,7 +1,7 @@
 <template>
   <view class="container">
     <view class="header">
-      <text class="title">匿名树洞</text>
+      <text class="title">树洞</text>
       <text class="subtitle">倾听彼此的声音</text>
     </view>
     <view class="diary-list">
@@ -36,20 +36,27 @@
 
 <script setup>
 import { ref } from 'vue'
-import { onShow, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
+import { onShow, onPullDownRefresh, onReachBottom, onUnload } from '@dcloudio/uni-app'
 
 const diaries = ref([])
 const isLoading = ref(false)
-const page = ref(1)
+const cursor = ref(null)
 const hasMore = ref(true)
 
 const innerAudioContext = uni.createInnerAudioContext()
+
+onUnload(() => {
+  if (innerAudioContext) {
+    innerAudioContext.stop()
+    innerAudioContext.destroy()
+  }
+})
 
 const fetchDiaries = async (reset = false) => {
   if (isLoading.value || (!hasMore.value && !reset)) return
   isLoading.value = true
   if (reset) {
-    page.value = 1
+    cursor.value = null
     diaries.value = []
     hasMore.value = true
   }
@@ -57,14 +64,15 @@ const fetchDiaries = async (reset = false) => {
   try {
     const res = await uni.cloud.callFunction({
       name: 'diaryCloud',
-      data: { action: 'getTreeHole', payload: { page: page.value, pageSize: 10 } }
+      data: { action: 'getTreeHole', payload: { cursor: cursor.value, pageSize: 10 } }
     })
     if (res.result.success) {
-      if (res.result.data.length < 10) {
+      const newData = res.result.data || []
+      diaries.value.push(...newData)
+      cursor.value = res.result.nextCursor || null
+      if (!cursor.value || newData.length < 10) {
         hasMore.value = false
       }
-      diaries.value.push(...res.result.data)
-      page.value++
     }
   } finally {
     isLoading.value = false
@@ -180,7 +188,7 @@ onReachBottom(() => {
 .truncate {
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  line-clamp: 3;
   overflow: hidden;
 }
 .audio-player {

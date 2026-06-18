@@ -61,7 +61,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
 import { useUserStore } from '@/stores/user'
 import { formatWeChatTime } from '@/utils/time'
 
@@ -74,12 +74,23 @@ const isSubmitting = ref(false)
 const isLiked = ref(false)
 const replyToId = ref(null)
 const replyToUser = ref(null)
+const isLiking = ref(false)
 
 const innerAudioContext = uni.createInnerAudioContext()
+
+onUnload(() => {
+  if (innerAudioContext) {
+    innerAudioContext.stop()
+    innerAudioContext.destroy()
+  }
+})
 
 onLoad((options) => {
   if (options.id) {
     diaryId.value = options.id
+    if (!userStore.myNickname) {
+      userStore.fetchProfile()
+    }
     fetchDetailData()
   }
 })
@@ -162,6 +173,8 @@ const deleteDiary = () => {
 }
 
 const toggleLike = async () => {
+  if (isLiking.value) return
+  isLiking.value = true
   try {
     const res = await uni.cloud.callFunction({ name: 'diaryCloud', data: { action: 'toggleLike', payload: { id: diaryId.value } } })
     if (res.result.success) {
@@ -172,6 +185,8 @@ const toggleLike = async () => {
     }
   } catch (e) {
     console.error(e)
+  } finally {
+    setTimeout(() => { isLiking.value = false }, 1000)
   }
 }
 
@@ -217,7 +232,7 @@ const addComment = async () => {
   } catch (e) {
     uni.showToast({ title: '网络错误', icon: 'none' })
   } finally {
-    isSubmitting.value = false
+    setTimeout(() => { isSubmitting.value = false }, 1000)
   }
 }
 
