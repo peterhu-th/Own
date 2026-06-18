@@ -275,7 +275,7 @@ const confirmExport = () => {
     const authorStr = getAuthorPrefix(d.owner_id).replace('：', '')
     txtContent += `【${timeStr}】(${authorStr}) \n${d.content}\n\n`
   })
-  
+  // #ifdef MP-WEIXIN
   const fs = wx.getFileSystemManager()
   const filePath = `${wx.env.USER_DATA_PATH}/导出日记_${Date.now()}.txt`
   
@@ -302,6 +302,11 @@ const confirmExport = () => {
       console.error('Export error', err)
     }
   })
+  // #endif
+  // #ifndef MP-WEIXIN
+  uni.hideLoading()
+  uni.showToast({ title: '当前环境不支持导出', icon: 'none' })
+  // #endif
 }
 
 onShow(() => {

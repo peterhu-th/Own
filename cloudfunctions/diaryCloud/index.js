@@ -314,12 +314,13 @@ async function handleGetTreeHole(openId, payload) {
   
   const resultData = diariesRes.data.map(d => {
     const userInfo = userMap[d.owner_id] || { anonymous_name: '某同学', color: '#CCCCCC' }
-    return {
+    const record = {
       ...d,
       anonymous_name: userInfo.anonymous_name,
-      avatar_color: userInfo.color,
-      owner_id: undefined // 抹除真实ID
+      avatar_color: userInfo.color
     }
+    delete record.owner_id // 删除真实ID
+    return record
   })
   
   return { success: true, data: resultData, nextCursor }
