@@ -85,11 +85,11 @@ onUnload(() => {
   }
 })
 
-onLoad((options) => {
+onLoad(async (options) => {
   if (options.id) {
     diaryId.value = options.id
     if (!userStore.myNickname) {
-      userStore.fetchProfile()
+      await userStore.fetchProfile() // 强制等待伴侣与个人资料加载完毕
     }
     fetchDetailData()
   }

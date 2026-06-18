@@ -113,11 +113,19 @@ async function handleGetDetail(openId, payload) {
       return { success: false, msg: '无权查看该日记' }
     }
     
-    // Use Promise.all to fetch comments and likes in parallel with timeout
-    const [commentsRes, likeRes] = await Promise.all([
-      withTimeout(db.collection('Comments').where({ diary_id: id }).orderBy('create_time', 'asc').get()).catch(() => ({ data: [] })),
-      withTimeout(db.collection('Likes').where({ diary_id: id, user_id: openId || '' }).get()).catch(() => ({ data: [] }))
-    ])
+    let commentsRes = { data: [] }
+    let likeRes = { data: [] }
+    try {
+      // Use Promise.all to fetch comments and likes in parallel with timeout
+      const results = await Promise.all([
+        withTimeout(db.collection('Comments').where({ diary_id: id }).orderBy('create_time', 'asc').get()).catch(() => ({ data: [] })),
+        withTimeout(db.collection('Likes').where({ diary_id: id, user_id: openId || '' }).get()).catch(() => ({ data: [] }))
+      ])
+      commentsRes = results[0]
+      likeRes = results[1]
+    } catch (innerErr) {
+      console.error('Fetch comments/likes failed:', innerErr)
+    }
       
     const isLiked = likeRes.data.length > 0
     
@@ -227,18 +235,29 @@ async function handleGetList(openId, payload) {
     const endOfDay = startOfDay + 24 * 60 * 60 * 1000 - 1
     // 如果有 dateFilter，就直接用这个时间范围（不使用 cursor 分页以简化逻辑，按日取不太多）
     matchCondition.create_time = _.and(_.gte(startOfDay), _.lte(endOfDay))
-  } else if (cursor) {
-    matchCondition.create_time = _.lt(cursor)
+  } else if (cursor && cursor.time && cursor.id) {
+    matchCondition = _.and([
+      matchCondition,
+      _.or([
+        { create_time: _.lt(cursor.time) },
+        { create_time: _.eq(cursor.time), _id: _.lt(cursor.id) }
+      ])
+    ])
   }
 
   const diariesRes = await db.collection('Diaries')
     .where(matchCondition)
     .orderBy('create_time', 'desc')
+    .orderBy('_id', 'desc')
     .limit(pageSize)
     .get()
 
   const data = diariesRes.data
-  const nextCursor = data.length > 0 ? data[data.length - 1].create_time : null
+  let nextCursor = null
+  if (data.length > 0) {
+    const lastItem = data[data.length - 1]
+    nextCursor = { time: lastItem.create_time, id: lastItem._id }
+  }
 
   return { success: true, data, nextCursor }
 }
@@ -247,14 +266,21 @@ async function handleGetTreeHole(openId, payload) {
   const { cursor, pageSize: inputPageSize = 10 } = payload || {}
   const pageSize = Math.min(inputPageSize, 20)
   
-  const matchCondition = { visibility: 'public' }
-  if (cursor) {
-    matchCondition.create_time = _.lt(cursor)
+  let matchCondition = { visibility: 'public' }
+  if (cursor && cursor.time && cursor.id) {
+    matchCondition = _.and([
+      matchCondition,
+      _.or([
+        { create_time: _.lt(cursor.time) },
+        { create_time: _.eq(cursor.time), _id: _.lt(cursor.id) }
+      ])
+    ])
   }
   
   const diariesRes = await db.collection('Diaries')
     .where(matchCondition)
     .orderBy('create_time', 'desc')
+    .orderBy('_id', 'desc')
     .limit(pageSize)
     .field({
       _id: true,
@@ -271,7 +297,8 @@ async function handleGetTreeHole(openId, payload) {
     return { success: true, data: [], nextCursor: null }
   }
   
-  const nextCursor = diariesRes.data[diariesRes.data.length - 1].create_time
+  const lastItem = diariesRes.data[diariesRes.data.length - 1]
+  const nextCursor = { time: lastItem.create_time, id: lastItem._id }
   const ownerIds = [...new Set(diariesRes.data.map(d => d.owner_id))]
   const usersRes = await db.collection('Users').where({
     _id: _.in(ownerIds)
@@ -342,20 +369,28 @@ async function handleGetLikedDiaries(openId, payload) {
   const { cursor, pageSize: inputPageSize = 10 } = payload || {}
   const pageSize = Math.min(inputPageSize, 20)
   
-  const matchCondition = { user_id: openId }
-  if (cursor) {
-    matchCondition.timestamp = _.lt(cursor)
+  let matchCondition = { user_id: openId }
+  if (cursor && cursor.time && cursor.id) {
+    matchCondition = _.and([
+      matchCondition,
+      _.or([
+        { timestamp: _.lt(cursor.time) },
+        { timestamp: _.eq(cursor.time), _id: _.lt(cursor.id) }
+      ])
+    ])
   }
   
   const likesRes = await db.collection('Likes')
     .where(matchCondition)
     .orderBy('timestamp', 'desc')
+    .orderBy('_id', 'desc')
     .limit(pageSize)
     .get()
     
   if (likesRes.data.length === 0) return { success: true, data: [], nextCursor: null }
   
-  const nextCursor = likesRes.data[likesRes.data.length - 1].timestamp
+  const lastLike = likesRes.data[likesRes.data.length - 1]
+  const nextCursor = { time: lastLike.timestamp, id: lastLike._id }
   const diaryIds = likesRes.data.map(l => l.diary_id)
   const diariesRes = await db.collection('Diaries').where({
     _id: _.in(diaryIds)
