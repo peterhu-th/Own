@@ -8,8 +8,8 @@ exports.main = async (event, context) => {
   const { action, payload } = event
 
   if (action === 'addComment') {
-    const { diary_id, content } = payload
-    if (!content || !content.trim()) return { success: false, msg: '批注不能为空' }
+    const { diary_id, content, reply_to_id, reply_to_user } = payload
+    if (!content || !content.trim()) return { success: false, msg: '留言不能为空' }
 
     // Insert comment
     const res = await db.collection('Comments').add({
@@ -17,6 +17,8 @@ exports.main = async (event, context) => {
         diary_id,
         commenter_id: openId,
         content,
+        reply_to_id: reply_to_id || null,
+        reply_to_user: reply_to_user || null,
         create_time: Date.now()
       }
     })
@@ -26,7 +28,7 @@ exports.main = async (event, context) => {
       data: {
         user_id: openId,
         type: 'comment',
-        action: '添加了批注',
+        action: '添加了留言',
         target_id: diary_id,
         timestamp: Date.now()
       }

@@ -27,7 +27,7 @@ exports.main = async (event, context) => {
 
 async function handleRequestUnbind(openId) {
   const userRecord = await db.collection('Users').doc(openId).get().catch(() => null)
-  if (!userRecord || !userRecord.data.partner_id) return { success: false, msg: '无伴侣可解绑' }
+  if (!userRecord || !userRecord.data.partner_id) return { success: false, msg: '不可解绑' }
 
   await db.collection('Users').doc(openId).update({
     data: {

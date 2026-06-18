@@ -21,10 +21,11 @@ exports.main = async (event, context) => {
 }
 
 async function handleUpdateProfile(openId, payload) {
-  const { nickname, avatarUrl } = payload
+  const { nickname, avatarUrl, anonymous_name } = payload
   let data = {}
   if (nickname !== undefined) data.nickname = nickname
   if (avatarUrl !== undefined) data.avatarUrl = avatarUrl
+  if (anonymous_name !== undefined) data.anonymous_name = anonymous_name
   
   if (Object.keys(data).length > 0) {
     try {
@@ -65,7 +66,8 @@ async function handleGetProfile(openId) {
       unbind_request_time: myRecord.data.unbind_request_time,
       unbind_initiator: myRecord.data.unbind_initiator,
       nickname: myRecord.data.nickname || myRecord.data._id.substring(0, 8) + '...',
-      avatarUrl: myRecord.data.avatarUrl || ''
+      avatarUrl: myRecord.data.avatarUrl || '',
+      anonymous_name: myRecord.data.anonymous_name || '某同学'
     },
     partnerData 
   }

@@ -8,7 +8,8 @@ export const useUserStore = defineStore('user', {
     isPartnerOnline: false,
     totalOnlineMinutes: 0,
     myNickname: '',
-    partnerNickname: ''
+    partnerNickname: '',
+    anonymousName: ''
   }),
   actions: {
     setLoginState(openId, partnerId = null) {
@@ -23,6 +24,9 @@ export const useUserStore = defineStore('user', {
     setNicknames(mine, partner) {
       this.myNickname = mine
       this.partnerNickname = partner
+    },
+    setAnonymousName(name) {
+      this.anonymousName = name
     },
     logout() {
       this.isLoggedIn = false

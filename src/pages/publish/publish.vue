@@ -14,7 +14,25 @@
       </view>
     </view>
 
-    <textarea class="content-input" placeholder="写下此刻的想法..." v-model="content" :maxlength="-1"></textarea>
+    <view class="visibility-selector">
+      <picker mode="selector" :range="['完全私密', '绑定后可见', '公开']" :value="visibilityIndex" @change="onVisibilityChange">
+        <view class="visibility-text">可见性: {{ ['完全私密', '绑定后可见', '公开'][visibilityIndex] }} ▼</view>
+      </picker>
+    </view>
+
+    <view class="input-wrapper">
+      <textarea class="content-input" placeholder="写下此刻的想法..." v-model="content" :maxlength="-1"></textarea>
+      <button class="voice-btn" type="default" size="mini" @touchstart="startRecord" @touchend="stopRecord">
+        {{ isRecording ? '松开 结束' : '按住 说话' }}
+      </button>
+    </view>
+    
+    <view class="audio-section" v-if="audioPath">
+      <view class="audio-card">
+        <text class="play-btn" @click="playAudio">{{ isPlaying ? '⏹ 停止' : '▶️ 播放录音' }}</text>
+        <text class="delete-audio" @click="removeAudio">删除</text>
+      </view>
+    </view>
     
     <view class="media-section">
       <view class="media-grid">
@@ -44,6 +62,30 @@ const isPublishing = ref(false)
 const isMediaLoading = ref(false)
 const editId = ref(null)
 const todayStr = ref('')
+const visibilityIndex = ref(1) // Default to partner
+const visibilityMap = ['private', 'partner', 'public']
+const audioPath = ref('')
+const isRecording = ref(false)
+const isPlaying = ref(false)
+
+const recorderManager = uni.getRecorderManager()
+const innerAudioContext = uni.createInnerAudioContext()
+
+recorderManager.onStop((res) => {
+  audioPath.value = res.tempFilePath
+})
+
+innerAudioContext.onPlay(() => {
+  isPlaying.value = true
+})
+
+innerAudioContext.onEnded(() => {
+  isPlaying.value = false
+})
+
+innerAudioContext.onStop(() => {
+  isPlaying.value = false
+})
 
 onLoad((options) => {
   const d = new Date()
@@ -73,6 +115,9 @@ const fetchDiaryDetail = async () => {
       const diary = res.result.diary
       content.value = diary.content
       mediaPaths.value = diary.media_list || []
+      audioPath.value = diary.audio_path || ''
+      const vIdx = visibilityMap.indexOf(diary.visibility)
+      if (vIdx !== -1) visibilityIndex.value = vIdx
     }
   } finally {
     uni.hideLoading()
@@ -84,6 +129,41 @@ const onTimeModeChange = (e) => {
 }
 const onCustomDateChange = (e) => { customDate.value = e.detail.value }
 const onCustomTimeChange = (e) => { customTime.value = e.detail.value }
+const onVisibilityChange = (e) => { visibilityIndex.value = e.detail.value }
+
+const startRecord = () => {
+  uni.authorize({
+    scope: 'scope.record',
+    success() {
+      isRecording.value = true
+      recorderManager.start({ duration: 60000, format: 'mp3' })
+    },
+    fail() {
+      uni.showToast({ title: '需要麦克风权限', icon: 'none' })
+    }
+  })
+}
+
+const stopRecord = () => {
+  if (isRecording.value) {
+    isRecording.value = false
+    recorderManager.stop()
+  }
+}
+
+const playAudio = () => {
+  if (isPlaying.value) {
+    innerAudioContext.stop()
+  } else {
+    innerAudioContext.src = audioPath.value
+    innerAudioContext.play()
+  }
+}
+
+const removeAudio = () => {
+  audioPath.value = ''
+  innerAudioContext.stop()
+}
 
 const chooseMedia = () => {
   isMediaLoading.value = true
@@ -143,9 +223,20 @@ const publishDiary = async () => {
       }
     }
 
+    let uploadedAudioPath = audioPath.value
+    if (audioPath.value && !audioPath.value.startsWith('cloud://')) {
+      const ext = audioPath.value.split('.').pop() || 'mp3'
+      const cloudAudioPath = `audios/${Date.now()}_${Math.floor(Math.random()*1000)}.${ext}`
+      const uploadAudioRes = await wx.cloud.uploadFile({
+        cloudPath: cloudAudioPath,
+        filePath: audioPath.value
+      })
+      uploadedAudioPath = uploadAudioRes.fileID
+    }
+
     const payload = editId.value 
-      ? { id: editId.value, content: content.value, media_list: fileIds }
-      : { content: content.value, media_list: fileIds, is_backdated: isBackdated.value, custom_time: customTimestamp }
+      ? { id: editId.value, content: content.value, media_list: fileIds, audio_path: uploadedAudioPath, visibility: visibilityMap[visibilityIndex.value] }
+      : { content: content.value, media_list: fileIds, audio_path: uploadedAudioPath, is_backdated: isBackdated.value, custom_time: customTimestamp, visibility: visibilityMap[visibilityIndex.value] }
 
     const res = await uni.cloud.callFunction({
       name: 'diaryCloud',
@@ -207,15 +298,60 @@ const publishDiary = async () => {
   border-radius: 8rpx;
   font-size: 26rpx;
 }
+.visibility-selector {
+  margin-bottom: 30rpx;
+  background: #fff;
+  padding: 20rpx;
+  border-radius: 12rpx;
+}
+.visibility-text {
+  font-size: 28rpx;
+  color: #666;
+}
+.input-wrapper {
+  position: relative;
+  margin-bottom: 30rpx;
+}
 .content-input {
   width: 100%;
   height: 400rpx;
   background: #fdfdfd;
   padding: 30rpx;
+  padding-bottom: 80rpx; /* 留出语音按钮空间 */
   border-radius: 20rpx;
   box-sizing: border-box;
-  margin-bottom: 30rpx;
   box-shadow: 0 4rpx 16rpx rgba(255, 122, 89, 0.05);
+}
+.voice-btn {
+  position: absolute;
+  bottom: 20rpx;
+  right: 20rpx;
+  z-index: 10;
+  border-radius: 40rpx;
+  font-size: 24rpx;
+  color: #FF7A59;
+  border: 1px solid #FF7A59;
+  background-color: transparent;
+}
+.audio-section {
+  margin-bottom: 30rpx;
+}
+.audio-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  padding: 20rpx 30rpx;
+  border-radius: 20rpx;
+  box-shadow: 0 4rpx 16rpx rgba(255, 122, 89, 0.05);
+}
+.play-btn {
+  font-size: 28rpx;
+  color: #333;
+}
+.delete-audio {
+  font-size: 26rpx;
+  color: #e64340;
 }
 .media-section {
   margin-bottom: 40rpx;

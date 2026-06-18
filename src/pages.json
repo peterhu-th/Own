@@ -29,13 +29,26 @@
 		{
 			"path": "pages/user/profile",
 			"style": {
-				"navigationBarTitleText": "Ta的状态"
+				"navigationBarTitleText": "我"
 			}
 		},
 		{
 			"path": "pages/setting/setting",
 			"style": {
 				"navigationBarTitleText": "设置"
+			}
+		},
+		{
+			"path": "pages/treeHole/treeHole",
+			"style": {
+				"navigationBarTitleText": "匿名树洞",
+				"enablePullDownRefresh": true
+			}
+		},
+		{
+			"path": "pages/user/likedDiaries",
+			"style": {
+				"navigationBarTitleText": "我赞过的"
 			}
 		}
 	],
@@ -57,7 +70,11 @@
 			},
 			{
 				"pagePath": "pages/user/profile",
-				"text": "Ta的状态"
+				"text": "我"
+			},
+			{
+				"pagePath": "pages/treeHole/treeHole",
+				"text": "树洞"
 			}
 		]
 	}

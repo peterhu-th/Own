@@ -43,6 +43,7 @@
       </view>
     </view>
     
+    <button class="settings-btn" type="primary" plain @click="goToLiked">我赞过的</button>
     <button class="settings-btn" type="default" @click="goToSettings">系统设置</button>
   </view>
 </template>
@@ -146,6 +147,10 @@ const onActivityClick = (log) => {
 
 const goToSettings = () => {
   uni.navigateTo({ url: '/pages/setting/setting' })
+}
+
+const goToLiked = () => {
+  uni.navigateTo({ url: '/pages/user/likedDiaries' })
 }
 
 onShow(() => {
@@ -311,6 +316,7 @@ onPullDownRefresh(() => {
 .settings-btn {
   background: #fff;
   color: #333;
+  margin-bottom: 20rpx;
 }
 .empty {
   text-align: center;

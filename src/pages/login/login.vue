@@ -2,6 +2,7 @@
   <view class="container">
     <view class="header">
       <text class="title">记忆窝点</text>
+      <text class="subtitle">抱枕上常常背靠的位置已经有了凹陷，\n光线昏昏的时刻，造就了孤独的窝点</text>
     </view>
     <view class="auth-box">
       <button v-if="!userStore.isLoggedIn" type="primary" :loading="loading" @click="handleLogin">进入日记本</button>

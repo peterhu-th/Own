@@ -1,5 +1,14 @@
 <template>
   <view class="container">
+    <view class="setting-zone">
+      <text class="title">树洞设置</text>
+      <text class="desc">设置在树洞中发表日记时的匿名昵称，系统会自动生成您的专属头像色彩。</text>
+      <view class="input-group">
+        <input class="input" placeholder="输入匿名昵称" v-model="anonymousName" maxlength="10" />
+        <button class="save-btn" type="primary" size="mini" :loading="isSaving" @click="saveAnonymousName">保存</button>
+      </view>
+    </view>
+
     <view class="danger-zone" v-if="userStore.partnerId">
       <text class="title">关系管理</text>
       <text class="desc">解绑后将触发 72 小时冷静期（测试环境下可通过全局变量关闭）。确认解绑后您的日记将不再对 TA 可见，且双方交叉批注将被全部清空且无法恢复。</text>
@@ -28,12 +37,37 @@ const userStore = useUserStore()
 const unbindRequestTime = ref(null)
 const unbindInitiator = ref(null)
 const isRequesting = ref(false)
+const isSaving = ref(false)
+const anonymousName = ref(userStore.anonymousName || '')
+
+const saveAnonymousName = async () => {
+  if (isSaving.value) return
+  isSaving.value = true
+  try {
+    const res = await uni.cloud.callFunction({ 
+      name: 'userCloud', 
+      data: { action: 'updateProfile', payload: { anonymous_name: anonymousName.value } } 
+    })
+    if (res.result.success) {
+      uni.showToast({ title: '保存成功' })
+      userStore.setAnonymousName(anonymousName.value)
+    } else {
+      uni.showToast({ title: '保存失败', icon: 'none' })
+    }
+  } finally {
+    isSaving.value = false
+  }
+}
 
 const fetchStatus = async () => {
   const res = await uni.cloud.callFunction({ name: 'userCloud', data: { action: 'getProfile' } })
   if (res.result.success) {
     unbindRequestTime.value = res.result.myData.unbind_request_time
     unbindInitiator.value = res.result.myData.unbind_initiator
+    if (res.result.myData.anonymous_name) {
+      anonymousName.value = res.result.myData.anonymous_name
+      userStore.setAnonymousName(res.result.myData.anonymous_name)
+    }
   }
 }
 
@@ -110,11 +144,12 @@ onShow(() => {
   background-color: #FFF8F0;
   min-height: 100vh;
 }
-.danger-zone {
+.danger-zone, .setting-zone {
   background: #fff;
   padding: 40rpx;
   border-radius: 20rpx;
   box-shadow: 0 4rpx 16rpx rgba(0,0,0,0.05);
+  margin-bottom: 30rpx;
 }
 .empty-zone {
   text-align: center;
@@ -153,5 +188,22 @@ onShow(() => {
   margin-top: 20rpx;
   border-color: #FF7A59 !important;
   color: #FF7A59 !important;
+}
+.input-group {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
+.input {
+  flex: 1;
+  height: 70rpx;
+  border: 2rpx solid #eee;
+  border-radius: 8rpx;
+  padding: 0 20rpx;
+  font-size: 28rpx;
+}
+.save-btn {
+  background-color: #FF7A59 !important;
+  margin: 0;
 }
 </style>

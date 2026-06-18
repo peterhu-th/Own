@@ -4,13 +4,20 @@
       <view class="header">
         <view class="author-info">
           <text class="time">{{ formatTime(diary.create_time) }}</text>
+          <text class="anonymous-name" v-if="diary.anonymous_name">{{ diary.anonymous_name }}</text>
         </view>
-        <view class="action-btns" v-if="diary.owner_id === userStore.openId">
-          <text class="edit-btn" @click="editDiary">修改</text>
-          <text class="delete-btn" @click="deleteDiary">删除</text>
+        <view class="action-btns">
+          <text class="like-btn" @click="toggleLike">{{ isLiked ? '❤️' : '🤍' }} {{ diary.like_count || 0 }}</text>
+          <text class="edit-btn" v-if="diary.owner_id === userStore.openId" @click="editDiary">修改</text>
+          <text class="delete-btn" v-if="diary.owner_id === userStore.openId" @click="deleteDiary">删除</text>
         </view>
       </view>
       <text class="text" user-select>{{ diary.content }}</text>
+      
+      <view class="audio-player" v-if="diary.audio_path" @click="playAudio(diary.audio_path)">
+        <text class="play-icon">▶️</text> <text class="play-text">点击播放语音</text>
+      </view>
+      
       <view class="media-list" v-if="diary.media_list && diary.media_list.length > 0">
         <image 
           v-for="(img, idx) in diary.media_list" 
@@ -26,20 +33,26 @@
     <view class="comment-section">
       <text class="comment-title">批注</text>
       <view class="comment-list">
-        <view class="comment-item" :class="{ 'my-comment': comment.commenter_id === userStore.openId, 'partner-comment': comment.commenter_id !== userStore.openId }" v-for="(comment, index) in comments" :key="index">
+        <view class="comment-item" :class="{ 'my-comment': comment.commenter_id === userStore.openId, 'partner-comment': comment.commenter_id !== userStore.openId }" v-for="(comment, index) in comments" :key="index" @click="prepareReply(comment)">
           <view class="comment-header">
             <view class="comment-info">
               <text class="comment-time">{{ formatTime(comment.create_time) }}</text>
             </view>
-            <text v-if="comment.commenter_id === userStore.openId" class="delete-btn" @click="deleteComment(comment._id)">删除</text>
+            <text v-if="comment.commenter_id === userStore.openId" class="delete-btn" @click.stop="deleteComment(comment._id)">删除</text>
           </view>
-          <text class="comment-text" user-select>{{ comment.content }}</text>
+          <text class="comment-text" user-select>
+            <text class="reply-to" v-if="comment.reply_to_user">回复 @{{ comment.reply_to_user }}: </text>
+            {{ comment.content }}
+          </text>
         </view>
         <view v-if="comments.length === 0" class="empty-comment">暂无批注</view>
       </view>
       
+      <view class="reply-hint" v-if="replyToId" @click="clearReply">
+        <text>回复 @{{ replyToUser }} (点击取消)</text>
+      </view>
       <view class="comment-input-box">
-        <input class="input" placeholder="写下你的批注..." v-model="newComment" confirm-type="send" @confirm="addComment" />
+        <input class="input" :placeholder="replyToId ? '回复 @' + replyToUser : '写下你的留言...'" v-model="newComment" confirm-type="send" @confirm="addComment" />
         <button size="mini" type="primary" :loading="isSubmitting" @click="addComment">发送</button>
       </view>
     </view>
@@ -58,6 +71,11 @@ const diary = ref(null)
 const comments = ref([])
 const newComment = ref('')
 const isSubmitting = ref(false)
+const isLiked = ref(false)
+const replyToId = ref(null)
+const replyToUser = ref(null)
+
+const innerAudioContext = uni.createInnerAudioContext()
 
 onLoad((options) => {
   if (options.id) {
@@ -80,6 +98,7 @@ const fetchDetailData = async () => {
     if (res.result.success) {
       diary.value = res.result.diary
       comments.value = res.result.comments
+      isLiked.value = res.result.isLiked
     } else {
       uni.showToast({ title: res.result.msg || '拉取详情失败', icon: 'none' })
     }
@@ -95,6 +114,15 @@ const formatTime = (ts) => formatWeChatTime(ts)
 
 const previewImage = (current, urls) => {
   uni.previewImage({ current, urls, showmenu: true })
+}
+
+const playAudio = (path) => {
+  if (innerAudioContext.src === path && !innerAudioContext.paused) {
+    innerAudioContext.stop()
+  } else {
+    innerAudioContext.src = path
+    innerAudioContext.play()
+  }
 }
 
 const editDiary = () => {
@@ -133,6 +161,33 @@ const deleteDiary = () => {
   })
 }
 
+const toggleLike = async () => {
+  try {
+    const res = await uni.cloud.callFunction({ name: 'diaryCloud', data: { action: 'toggleLike', payload: { id: diaryId.value } } })
+    if (res.result.success) {
+      isLiked.value = res.result.isLiked
+      diary.value.like_count = diary.value.like_count || 0
+      diary.value.like_count += isLiked.value ? 1 : -1
+      uni.$emit('refreshDiaries')
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const prepareReply = (comment) => {
+  replyToId.value = comment._id
+  let authorName = '某同学'
+  if (comment.commenter_id === userStore.openId) authorName = userStore.myNickname || '我'
+  else if (comment.commenter_id === userStore.partnerId) authorName = userStore.partnerNickname || '你'
+  replyToUser.value = authorName
+}
+
+const clearReply = () => {
+  replyToId.value = null
+  replyToUser.value = null
+}
+
 const addComment = async () => {
   if (!newComment.value.trim() || isSubmitting.value) return
   isSubmitting.value = true
@@ -144,17 +199,20 @@ const addComment = async () => {
         action: 'addComment',
         payload: {
           diary_id: diaryId.value,
-          content: newComment.value
+          content: newComment.value,
+          reply_to_id: replyToId.value,
+          reply_to_user: replyToUser.value
         }
       }
     })
     
     if (res.result.success) {
-      uni.showToast({ title: '批注成功', icon: 'none' })
+      uni.showToast({ title: '留言成功', icon: 'none' })
       newComment.value = ''
+      clearReply()
       fetchDetailData() // Refresh comments
     } else {
-      uni.showToast({ title: res.result.msg || '批注失败', icon: 'none' })
+      uni.showToast({ title: res.result.msg || '留言失败', icon: 'none' })
     }
   } catch (e) {
     uni.showToast({ title: '网络错误', icon: 'none' })
@@ -227,18 +285,39 @@ const deleteComment = (commentId) => {
 .action-btns {
   display: flex;
   gap: 20rpx;
+  align-items: center;
 }
-.edit-btn, .delete-btn {
+.like-btn, .edit-btn, .delete-btn {
   font-size: 26rpx;
   padding: 10rpx;
 }
+.like-btn { color: #FF7A59; font-weight: bold; }
 .edit-btn { color: #007aff; }
 .delete-btn { color: #e64340; }
+.anonymous-name {
+  font-size: 24rpx;
+  color: #FF7A59;
+  margin-left: 10rpx;
+  background: rgba(255, 122, 89, 0.1);
+  padding: 4rpx 12rpx;
+  border-radius: 8rpx;
+}
 .text {
   font-size: 32rpx;
   line-height: 1.6;
   color: #333;
 }
+.audio-player {
+  display: inline-flex;
+  align-items: center;
+  background: #f5f5f5;
+  padding: 10rpx 24rpx;
+  border-radius: 30rpx;
+  margin-top: 20rpx;
+  gap: 10rpx;
+}
+.play-icon { font-size: 24rpx; }
+.play-text { font-size: 26rpx; color: #666; }
 .media-list {
   margin-top: 30rpx;
   display: flex;
@@ -310,9 +389,19 @@ const deleteComment = (commentId) => {
 }
 .comment-input-box {
   display: flex;
-  margin-top: 30rpx;
+  margin-top: 10rpx;
   gap: 16rpx;
   align-items: center;
+}
+.reply-hint {
+  font-size: 24rpx;
+  color: #FF7A59;
+  margin-top: 20rpx;
+  padding: 10rpx;
+}
+.reply-to {
+  color: #007aff;
+  font-weight: bold;
 }
 .input {
   flex: 1;
