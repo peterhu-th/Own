@@ -46,6 +46,14 @@ exports.main = async (event, context) => {
       }
     })
 
+    // Update comment_count
+    const _ = db.command
+    await db.collection('Diaries').doc(diary_id).update({
+      data: {
+        comment_count: _.inc(1)
+      }
+    }).catch(() => null)
+
     // Log Activity
     await db.collection('ActivityLog').add({
       data: {
@@ -78,6 +86,13 @@ exports.main = async (event, context) => {
     }
 
     try {
+      const _ = db.command
+      await db.collection('Diaries').doc(record.data.diary_id).update({
+        data: {
+          comment_count: _.inc(-1)
+        }
+      }).catch(() => null)
+      
       await db.collection('Comments').doc(id).remove()
       return { success: true }
     } catch (e) {

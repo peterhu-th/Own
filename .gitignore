@@ -50,3 +50,9 @@ upload_*.log
 # Private Data
 information.txt
 notes.md
+
+# AI Assistants & Tools
+.gemini/
+.cursor/
+.vscode/
+artifacts/

@@ -3,7 +3,7 @@
 		{
 			"path": "pages/index/index",
 			"style": {
-				"navigationBarTitleText": "日记本"
+				"navigationBarTitleText": "日记"
 			}
 		},
 		{
@@ -29,7 +29,7 @@
 		{
 			"path": "pages/user/profile",
 			"style": {
-				"navigationBarTitleText": "我"
+				"navigationBarTitleText": "我的"
 			}
 		},
 		{
@@ -39,9 +39,9 @@
 			}
 		},
 		{
-			"path": "pages/treeHole/treeHole",
+			"path": "pages/square/square",
 			"style": {
-				"navigationBarTitleText": "树洞",
+				"navigationBarTitleText": "广场",
 				"enablePullDownRefresh": true
 			}
 		},
@@ -69,12 +69,12 @@
 				"text": "日记"
 			},
 			{
-				"pagePath": "pages/user/profile",
-				"text": "我"
+				"pagePath": "pages/square/square",
+				"text": "广场"
 			},
 			{
-				"pagePath": "pages/treeHole/treeHole",
-				"text": "树洞"
+				"pagePath": "pages/user/profile",
+				"text": "我的"
 			}
 		]
 	}

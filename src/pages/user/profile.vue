@@ -5,17 +5,19 @@
         <button class="avatar-btn" open-type="chooseAvatar" @chooseavatar="onChooseAvatar">
           <image class="avatar" :src="profileData.avatarUrl || '/static/logo.png'" mode="aspectFill"></image>
         </button>
-        <view v-if="partnerData" :class="['status-dot', partnerData.is_online ? 'online' : 'offline']"></view>
       </view>
       <input 
         type="nickname" 
         class="nickname-input" 
         :value="profileData.nickname" 
         @blur="onNicknameBlur" 
-        placeholder="点击设置昵称" 
+        placeholder="设置昵称" 
       />
       <text class="bind-status">{{ partnerData ? '已绑定' : '未绑定' }}</text>
-      <text class="status-text" v-if="partnerData">{{ partnerData.is_online ? '当前在线' : '离线' }}</text>
+      <view class="partner-status" v-if="partnerData">
+        <view :class="['status-dot-inline', partnerData.is_online ? 'online' : 'offline']"></view>
+        <text class="status-text">Ta当前{{ partnerData.is_online ? '在线' : '离线' }}</text>
+      </view>
       
       <view class="stats">
         <text class="stat-item">累积在线: <text class="highlight">{{ profileData.total_online_minutes }}</text> 分钟</text>
@@ -49,7 +51,7 @@
       <view class="menu-item" @click="goToLiked" hover-class="menu-hover">
         <view class="menu-item-left">
           <text class="menu-icon">❤️</text>
-          <text class="menu-text">我赞过的日记</text>
+          <text class="menu-text">我赞过的</text>
         </view>
         <text class="menu-arrow">›</text>
       </view>
@@ -161,7 +163,6 @@ const formatTime = (ts) => formatWeChatTime(ts)
 const onActivityClick = (log) => {
   if ((log.type === 'diary' || log.type === 'comment') && log.target_id) {
     let target = log.target_id
-    // 如果是日记直接跳转日记id, 如果是评论 target_id 也是 diary_id
     uni.navigateTo({ url: `/pages/diary/detail?id=${target}` })
   }
 }
@@ -227,14 +228,25 @@ onPullDownRefresh(() => {
   border-radius: 50%;
   background: #eee;
 }
-.status-dot {
-  position: absolute;
-  right: 10rpx;
-  bottom: 10rpx;
-  width: 30rpx;
-  height: 30rpx;
+.partner-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 20rpx;
+  background: #f9f9f9;
+  padding: 12rpx 30rpx;
+  border-radius: 30rpx;
+}
+.status-dot-inline {
+  width: 16rpx;
+  height: 16rpx;
   border-radius: 50%;
-  border: 4rpx solid #fff;
+  margin-right: 12rpx;
+}
+.status-text {
+  font-size: 26rpx;
+  color: #555;
+  font-weight: bold;
 }
 .online { background-color: #8FBC8F; }
 .offline { background-color: #d9d9d9; }

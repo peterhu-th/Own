@@ -8,6 +8,16 @@
         <view class="card-content">
           <text class="text-content clamp-text">{{ diary.content }}</text>
         </view>
+        <view class="card-footer">
+          <view class="like-btn">
+            <image src="/static/like-filled.svg" class="icon-svg" />
+            <text>{{ diary.like_count || 0 }}</text>
+          </view>
+          <view class="comment-btn">
+            <image src="/static/comment.svg" class="icon-svg" />
+            <text>{{ diary.comment_count || 0 }}</text>
+          </view>
+        </view>
       </view>
       <view v-if="diaries.length === 0 && !isLoading" class="empty">暂无赞过的日记</view>
     </view>
@@ -105,8 +115,30 @@ onReachBottom(() => {
 .clamp-text {
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  line-clamp: 3;
   overflow: hidden;
+}
+.card-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 30rpx;
+  margin-top: 20rpx;
+  border-top: 1px solid #f0f0f0;
+  padding-top: 20rpx;
+}
+.like-btn, .comment-btn {
+  display: flex;
+  align-items: center;
+  font-size: 24rpx;
+  color: #888;
+  line-height: 1;
+}
+.icon-svg {
+  width: 32rpx;
+  height: 32rpx;
+  margin-right: 8rpx;
+  transform: translateY(1rpx);
 }
 .empty {
   text-align: center;

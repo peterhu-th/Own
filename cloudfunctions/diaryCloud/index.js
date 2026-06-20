@@ -18,8 +18,8 @@ exports.main = async (event, context) => {
       return await handleGetList(openId, payload)
     case 'getDetail':
       return await handleGetDetail(openId, payload)
-    case 'getTreeHole':
-      return await handleGetTreeHole(openId, payload)
+    case 'getSquare':
+      return await handleGetSquare(openId, payload)
     case 'toggleLike':
       return await handleToggleLike(openId, payload)
     case 'getLikedDiaries':
@@ -257,12 +257,23 @@ async function handleGetList(openId, payload) {
   if (data.length > 0) {
     const lastItem = data[data.length - 1]
     nextCursor = { time: lastItem.create_time, id: lastItem._id }
+    
+    // 补充 isLiked
+    const diaryIds = data.map(d => d._id)
+    const likesRes = await db.collection('Likes').where({
+      diary_id: _.in(diaryIds),
+      user_id: openId
+    }).get()
+    const likedSet = new Set(likesRes.data.map(l => l.diary_id))
+    data.forEach(d => {
+      d.isLiked = likedSet.has(d._id)
+    })
   }
 
   return { success: true, data, nextCursor }
 }
 
-async function handleGetTreeHole(openId, payload) {
+async function handleGetSquare(openId, payload) {
   const { cursor, pageSize: inputPageSize = 10 } = payload || {}
   const pageSize = Math.min(inputPageSize, 20)
   
@@ -289,7 +300,8 @@ async function handleGetTreeHole(openId, payload) {
       audio_path: true,
       create_time: true,
       owner_id: true,
-      like_count: true
+      like_count: true,
+      comment_count: true
     })
     .get()
     
@@ -323,6 +335,19 @@ async function handleGetTreeHole(openId, payload) {
     return record
   })
   
+  if (resultData.length > 0) {
+    // 补充 isLiked
+    const diaryIds = resultData.map(d => d._id)
+    const likesRes = await db.collection('Likes').where({
+      diary_id: _.in(diaryIds),
+      user_id: openId
+    }).get()
+    const likedSet = new Set(likesRes.data.map(l => l.diary_id))
+    resultData.forEach(d => {
+      d.isLiked = likedSet.has(d._id)
+    })
+  }
+
   return { success: true, data: resultData, nextCursor }
 }
 

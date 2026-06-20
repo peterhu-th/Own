@@ -7,7 +7,10 @@
           <text class="anonymous-name" v-if="diary.anonymous_name">{{ diary.anonymous_name }}</text>
         </view>
         <view class="action-btns">
-          <text class="like-btn" @click="toggleLike">{{ isLiked ? '❤️' : '🤍' }} {{ diary.like_count || 0 }}</text>
+          <view class="like-btn" @click="toggleLike">
+            <image :src="isLiked ? '/static/like-filled.svg' : '/static/like-empty.svg'" class="icon-svg" />
+            <text>{{ diary.like_count || 0 }}</text>
+          </view>
           <text class="edit-btn" v-if="diary.owner_id === userStore.openId" @click="editDiary">修改</text>
           <text class="delete-btn" v-if="diary.owner_id === userStore.openId" @click="deleteDiary">删除</text>
         </view>
@@ -425,5 +428,16 @@ const deleteComment = (commentId) => {
   border-radius: 36rpx;
   padding: 0 30rpx;
   font-size: 28rpx;
+}
+.like-btn {
+  display: flex;
+  align-items: center;
+  line-height: 1;
+}
+.icon-svg {
+  width: 32rpx;
+  height: 32rpx;
+  margin-right: 8rpx;
+  transform: translateY(1rpx);
 }
 </style>

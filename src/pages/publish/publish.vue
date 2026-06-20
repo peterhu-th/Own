@@ -1,56 +1,67 @@
 <template>
   <view class="container">
-    <view class="time-selector" v-if="!editId">
-      <picker mode="selector" :range="['记录此刻', '捡拾过去']" @change="onTimeModeChange">
+    <view class="header-options">
+      <picker v-if="!editId" mode="selector" :range="['记录此刻', '捡拾过去']" @change="onTimeModeChange">
         <view class="mode-text">{{ isBackdated ? '捡拾过去 ▼' : '记录此刻 ▼' }}</view>
       </picker>
-      <view v-if="isBackdated" class="custom-time-picker">
-        <picker mode="date" :value="customDate" :end="todayStr" @change="onCustomDateChange">
-          <text class="picker-txt">{{ customDate || '选择日期' }}</text>
-        </picker>
-        <picker mode="time" :value="customTime" @change="onCustomTimeChange">
-          <text class="picker-txt">{{ customTime || '选择时间' }}</text>
-        </picker>
-      </view>
+      <view v-else></view>
+
+      <picker mode="selector" :range="['完全私密', '绑定可见', '公开']" :value="visibilityIndex" @change="onVisibilityChange">
+        <view class="visibility-text">{{ ['完全私密', '绑定可见', '公开'][visibilityIndex] }} ▼</view>
+      </picker>
     </view>
 
-    <view class="visibility-selector">
-      <picker mode="selector" :range="['完全私密', '绑定后可见', '公开']" :value="visibilityIndex" @change="onVisibilityChange">
-        <view class="visibility-text">可见性: {{ ['完全私密', '绑定后可见', '公开'][visibilityIndex] }} ▼</view>
+    <view v-if="!editId && isBackdated" class="custom-time-picker">
+      <picker mode="date" :value="customDate" :end="todayStr" @change="onCustomDateChange">
+        <text class="picker-txt">{{ customDate || '选择日期' }}</text>
+      </picker>
+      <picker mode="time" :value="customTime" @change="onCustomTimeChange">
+        <text class="picker-txt">{{ customTime || '选择时间' }}</text>
       </picker>
     </view>
 
     <view class="input-wrapper">
-      <textarea class="content-input" placeholder="写下此刻的想法..." v-model="content" :maxlength="-1"></textarea>
-      <button class="voice-btn" type="default" size="mini" @touchstart="startRecord" @touchend="stopRecord">
-        {{ isRecording ? '松开 结束' : '按住 说话' }}
+      <textarea class="content-input" :style="{ height: textareaHeight }" @linechange="onLineChange" placeholder="写下此刻的想法..." v-model="content" :maxlength="-1"></textarea>
+      <button class="voice-btn" type="default" size="mini" @click="toggleRecord">
+        {{ isRecording ? '结束录音' : '开始录音' }}
       </button>
+    </view>
+    <view class="text-toggle-bar" v-if="showTextToggle">
+      <text class="toggle-text" @click="isTextExpanded = !isTextExpanded">{{ isTextExpanded ? '收起' : '展开' }}</text>
     </view>
     
     <view class="audio-section" v-if="audioPath">
       <view class="audio-card">
-        <text class="play-btn" @click="playAudio">{{ isPlaying ? '⏹ 停止' : '▶️ 播放录音' }}</text>
+        <text class="play-btn" @click="playAudio">{{ isPlaying ? '⏹ 停止' : '▶️ 播放' }} {{ audioDuration ? audioDuration + 's' : '' }}</text>
         <text class="delete-audio" @click="removeAudio">删除</text>
       </view>
     </view>
     
     <view class="media-section">
       <view class="media-grid">
-        <view class="media-item" v-for="(img, idx) in mediaPaths" :key="idx">
-          <image :src="img" mode="aspectFill" class="img" />
-          <view class="delete-btn" @click.stop="removeMedia(idx)">×</view>
-        </view>
-        <view class="add-btn" @click="chooseMedia" v-if="mediaPaths.length < 9">+</view>
+        <template v-for="(img, idx) in mediaPaths" :key="idx">
+          <view class="media-item" v-if="isMediaExpanded || idx < 3">
+            <image :src="img" mode="aspectFill" class="img" />
+            <view class="delete-btn" @click.stop="removeMedia(idx)">×</view>
+            <view class="mask-overlay" v-if="!isMediaExpanded && idx === 2 && mediaPaths.length > 3" @click="isMediaExpanded = true">
+              <text>+{{ mediaPaths.length - 3 }}</text>
+            </view>
+          </view>
+        </template>
+        <view class="add-btn" @click="chooseMedia" v-if="isMediaExpanded || mediaPaths.length < 3">+</view>
+      </view>
+      <view class="media-toggle-bar" v-if="isMediaExpanded && mediaPaths.length > 3">
+        <text class="toggle-text" @click="isMediaExpanded = false">收起</text>
       </view>
     </view>
     <button class="publish-btn" type="primary" :loading="isPublishing" :disabled="isMediaLoading" @click="publishDiary">
-      {{ editId ? '保存修改' : '发布' }}
+      {{ editId ? '保存' : '发布' }}
     </button>
   </view>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
 
 const content = ref('')
@@ -67,12 +78,42 @@ const visibilityMap = ['private', 'partner', 'public']
 const audioPath = ref('')
 const isRecording = ref(false)
 const isPlaying = ref(false)
+const isTextExpanded = ref(false)
+const isMediaExpanded = ref(false)
+const audioDuration = ref(0)
+
+const textContentHeightPx = ref(0)
+const showTextToggle = ref(false)
+
+const onLineChange = (e) => {
+  textContentHeightPx.value = e.detail.height
+  const minFullHeight = uni.upx2px(400)
+  const paddingHeight = uni.upx2px(110)
+  if (e.detail.height + paddingHeight > minFullHeight) {
+    showTextToggle.value = true
+  } else {
+    showTextToggle.value = false
+    isTextExpanded.value = false
+  }
+}
+
+const textareaHeight = computed(() => {
+  if (!isTextExpanded.value) return '400rpx'
+  return `${textContentHeightPx.value + uni.upx2px(110)}px`
+})
+
+watch(mediaPaths, (newVal) => {
+  if (newVal.length <= 3) {
+    isMediaExpanded.value = false
+  }
+}, { deep: true })
 
 const recorderManager = uni.getRecorderManager()
 const innerAudioContext = uni.createInnerAudioContext()
 
 recorderManager.onStop((res) => {
   audioPath.value = res.tempFilePath
+  audioDuration.value = Math.ceil(res.duration / 1000)
 })
 
 innerAudioContext.onPlay(() => {
@@ -108,6 +149,11 @@ onLoad((options) => {
     const cachedTime = uni.getStorageSync('lastBackdatedTime')
     if (cachedDate) customDate.value = cachedDate
     if (cachedTime) customTime.value = cachedTime
+    
+    if (options.visibility) {
+      const vIdx = visibilityMap.indexOf(options.visibility)
+      if (vIdx !== -1) visibilityIndex.value = vIdx
+    }
   }
 })
 
@@ -138,23 +184,29 @@ const onCustomDateChange = (e) => { customDate.value = e.detail.value }
 const onCustomTimeChange = (e) => { customTime.value = e.detail.value }
 const onVisibilityChange = (e) => { visibilityIndex.value = e.detail.value }
 
-const startRecord = () => {
-  uni.authorize({
-    scope: 'scope.record',
-    success() {
-      isRecording.value = true
-      recorderManager.start({ duration: 60000, format: 'mp3' })
-    },
-    fail() {
-      uni.showToast({ title: '需要麦克风权限', icon: 'none' })
-    }
-  })
-}
-
-const stopRecord = () => {
+const toggleRecord = () => {
   if (isRecording.value) {
     isRecording.value = false
     recorderManager.stop()
+  } else {
+    uni.authorize({
+      scope: 'scope.record',
+      success() {
+        isRecording.value = true
+        recorderManager.start({ duration: 60000, format: 'mp3' })
+      },
+      fail() {
+        uni.showModal({
+          title: '权限申请',
+          content: '录音功能需要麦克风权限，是否前往设置开启？',
+          success(res) {
+            if (res.confirm) {
+              uni.openSetting()
+            }
+          }
+        })
+      }
+    })
   }
 }
 
@@ -169,17 +221,28 @@ const playAudio = () => {
 
 const removeAudio = () => {
   audioPath.value = ''
+  audioDuration.value = 0
   innerAudioContext.stop()
 }
 
 const chooseMedia = () => {
+  if (mediaPaths.value.length >= 9) {
+    uni.showToast({ title: '最多只能上传9张图片', icon: 'none' })
+    return
+  }
   isMediaLoading.value = true
   uni.showLoading({ title: '处理媒体...' })
   uni.chooseMedia({
-    count: 9 - mediaPaths.value.length,
+    count: 9,
     mediaType: ['image'],
     success: (res) => {
-      mediaPaths.value.push(...res.tempFiles.map(f => f.tempFilePath))
+      const remaining = 9 - mediaPaths.value.length
+      if (res.tempFiles.length > remaining) {
+        uni.showToast({ title: '最多只能上传9张图片', icon: 'none', duration: 2000 })
+        mediaPaths.value.push(...res.tempFiles.slice(0, remaining).map(f => f.tempFilePath))
+      } else {
+        mediaPaths.value.push(...res.tempFiles.map(f => f.tempFilePath))
+      }
     },
     complete: () => {
       isMediaLoading.value = false
@@ -282,38 +345,38 @@ const publishDiary = async () => {
   background-color: #FFF8F0;
   min-height: 100vh;
 }
-.time-selector {
+.header-options {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 30rpx;
   background: #fff;
-  padding: 20rpx;
+  padding: 20rpx 30rpx;
   border-radius: 12rpx;
+  box-shadow: 0 4rpx 16rpx rgba(255, 122, 89, 0.05);
 }
 .mode-text {
   font-weight: bold;
-  color: #FF7A59;
+  color: #666;
+  font-size: 28rpx;
 }
 .custom-time-picker {
   display: flex;
   gap: 20rpx;
+  margin-bottom: 30rpx;
 }
 .picker-txt {
-  background: #f5f5f5;
-  padding: 10rpx 20rpx;
-  border-radius: 8rpx;
-  font-size: 26rpx;
-}
-.visibility-selector {
-  margin-bottom: 30rpx;
   background: #fff;
-  padding: 20rpx;
+  padding: 16rpx 24rpx;
   border-radius: 12rpx;
+  font-size: 26rpx;
+  color: #555;
+  box-shadow: 0 4rpx 16rpx rgba(255, 122, 89, 0.05);
 }
 .visibility-text {
   font-size: 28rpx;
   color: #666;
+  font-weight: bold;
 }
 .input-wrapper {
   position: relative;
@@ -322,12 +385,25 @@ const publishDiary = async () => {
 .content-input {
   width: 100%;
   height: 400rpx;
+  min-height: 400rpx;
   background: #fdfdfd;
   padding: 30rpx;
-  padding-bottom: 80rpx; /* 留出语音按钮空间 */
+  padding-bottom: 80rpx;
   border-radius: 20rpx;
   box-sizing: border-box;
   box-shadow: 0 4rpx 16rpx rgba(255, 122, 89, 0.05);
+}
+.text-toggle-bar, .media-toggle-bar {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 30rpx;
+}
+.media-toggle-bar {
+  margin-top: 30rpx;
+}
+.toggle-text {
+  font-size: 26rpx;
+  color: #FF7A59;
 }
 .voice-btn {
   position: absolute;
@@ -391,6 +467,25 @@ const publishDiary = async () => {
   align-items: center;
   justify-content: center;
   font-size: 28rpx;
+  z-index: 10;
+}
+.mask-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.5);
+  border-radius: 16rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+}
+.mask-overlay text {
+  color: #fff;
+  font-size: 48rpx;
+  font-weight: bold;
 }
 .add-btn {
   width: 100%;

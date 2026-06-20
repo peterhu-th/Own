@@ -1,17 +1,17 @@
 <template>
   <view class="container">
     <view class="setting-zone">
-      <text class="title">树洞设置</text>
-      <text class="desc">设置在树洞中发表日记时的匿名昵称，系统会自动生成您的专属头像色彩。</text>
+      <text class="title">广场设置</text>
+      <text class="desc">设置在广场中发表日记时的昵称。</text>
       <view class="input-group">
-        <input class="input" placeholder="输入匿名昵称" v-model="anonymousName" maxlength="10" />
+        <input class="input" placeholder="输入昵称" v-model="anonymousName" maxlength="10" />
         <button class="save-btn" type="primary" size="mini" :loading="isSaving" @click="saveAnonymousName">保存</button>
       </view>
     </view>
 
     <view class="danger-zone" v-if="userStore.partnerId">
       <text class="title">关系管理</text>
-      <text class="desc">解绑后将触发 72 小时冷静期（测试环境下可通过全局变量关闭）。确认解绑后您的日记将不再对 TA 可见，且双方交叉批注将被全部清空且无法恢复。</text>
+      <text class="desc">解绑后将触发 72 小时冷静期。确认解绑后您的日记将不再对 Ta 可见，且双方交叉批注将被全部清空且无法恢复。</text>
       
       <button v-if="!unbindRequestTime" type="warn" :loading="isRequesting" @click="requestUnbind">申请解绑</button>
       

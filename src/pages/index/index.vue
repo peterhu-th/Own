@@ -16,7 +16,7 @@
       </picker>
       
       <text class="clear-btn" v-if="selectedDate || selectedOwnerIdx !== 0" @click="clearFilter">清除</text>
-      <text class="export-toggle-btn" @click="toggleExportMode">{{ isExportMode ? '取消导出' : '多选/导出' }}</text>
+      <text class="export-toggle-btn" @click="toggleExportMode">{{ isExportMode ? '取消' : '导出' }}</text>
     </view>
 
     <view v-if="isExportMode" class="export-action-bar">
@@ -44,6 +44,7 @@
         :class="{ 'my-diary': diary.owner_id === userStore.openId, 'partner-diary': diary.owner_id !== userStore.openId }"
         v-for="(diary, index) in diaries" 
         :key="index"
+        @longpress="handleLongPress(diary._id)"
         @click="isExportMode ? toggleSelect(diary._id) : goToDetail(diary._id)"
       >
         <view class="checkbox-wrapper" v-if="isExportMode">
@@ -80,7 +81,14 @@
           </view>
           </view>
           <view class="card-footer">
-            <text class="like-btn" @click.stop="toggleLike(diary)">❤️ {{ diary.like_count || 0 }}</text>
+            <view class="like-btn" @click.stop="toggleLike(diary)">
+              <image :src="diary.isLiked ? '/static/like-filled.svg' : '/static/like-empty.svg'" class="icon-svg" />
+              <text>{{ diary.like_count || 0 }}</text>
+            </view>
+            <view class="comment-btn">
+              <image src="/static/comment.svg" class="icon-svg" />
+              <text>{{ diary.comment_count || 0 }}</text>
+            </view>
           </view>
         </view>
       </view>
@@ -98,6 +106,7 @@ import { ref } from 'vue'
 import { onLoad, onShow, onPullDownRefresh, onReachBottom, onUnload } from '@dcloudio/uni-app'
 import { useUserStore } from '@/stores/user'
 import { formatWeChatTime } from '@/utils/time'
+import { useExport } from '@/composables/useExport'
 
 const userStore = useUserStore()
 const diaries = ref([])
@@ -112,9 +121,8 @@ const pageSize = 10
 const hasMore = ref(true)
 const isLoading = ref(false)
 
-const isExportMode = ref(false)
-const selectedExportIds = ref([])
 const pastDiaries = ref([])
+const { isExportMode, selectedExportIds, toggleExportMode, handleLongPress, toggleSelect, confirmExport: executeExport } = useExport(diaries)
 
 const innerAudioContext = uni.createInnerAudioContext()
 
@@ -227,6 +235,7 @@ const toggleLike = async (diary) => {
     if (res.result.success) {
       diary.like_count = diary.like_count || 0
       diary.like_count += res.result.isLiked ? 1 : -1
+      diary.isLiked = res.result.isLiked
     }
   } catch (e) {
     console.error(e)
@@ -246,67 +255,12 @@ const goToPublish = () => {
   uni.navigateTo({ url: '/pages/publish/publish' })
 }
 
-const toggleExportMode = () => {
-  isExportMode.value = !isExportMode.value
-  selectedExportIds.value = []
-}
-
-const toggleSelect = (id) => {
-  const idx = selectedExportIds.value.indexOf(id)
-  if (idx > -1) {
-    selectedExportIds.value.splice(idx, 1)
-  } else {
-    if (selectedExportIds.value.length >= 100) {
-      return uni.showToast({ title: '最多选择100条', icon: 'none' })
-    }
-    selectedExportIds.value.push(id)
-  }
-}
-
 const confirmExport = () => {
-  if (selectedExportIds.value.length === 0) return
-  uni.showLoading({ title: '生成中...' })
-  
-  const selectedDiaries = diaries.value.filter(d => selectedExportIds.value.includes(d._id))
-  
-  let txtContent = ''
-  selectedDiaries.forEach(d => {
+  executeExport((d) => {
     const timeStr = formatTime(d.create_time)
     const authorStr = getAuthorPrefix(d.owner_id).replace('：', '')
-    txtContent += `【${timeStr}】(${authorStr}) \n${d.content}\n\n`
+    return `【${timeStr}】(${authorStr}) \n${d.content}`
   })
-  // #ifdef MP-WEIXIN
-  const fs = wx.getFileSystemManager()
-  const filePath = `${wx.env.USER_DATA_PATH}/导出日记_${Date.now()}.txt`
-  
-  fs.writeFile({
-    filePath,
-    data: txtContent,
-    encoding: 'utf8',
-    success() {
-      uni.hideLoading()
-      wx.shareFileMessage({
-        filePath,
-        success() {
-          isExportMode.value = false
-          selectedExportIds.value = []
-        },
-        fail() {
-          uni.showToast({ title: '已取消分享', icon: 'none' })
-        }
-      })
-    },
-    fail(err) {
-      uni.hideLoading()
-      uni.showToast({ title: '生成文件失败', icon: 'none' })
-      console.error('Export error', err)
-    }
-  })
-  // #endif
-  // #ifndef MP-WEIXIN
-  uni.hideLoading()
-  uni.showToast({ title: '当前环境不支持导出', icon: 'none' })
-  // #endif
 }
 
 onShow(() => {
@@ -565,5 +519,27 @@ onReachBottom(() => {
   font-size: 30rpx;
   color: #fff;
   line-height: 1.5;
+}
+.card-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 30rpx;
+  margin-top: 20rpx;
+  border-top: 1px solid #f0f0f0;
+  padding-top: 20rpx;
+}
+.like-btn, .comment-btn {
+  display: flex;
+  align-items: center;
+  font-size: 24rpx;
+  color: #888;
+  line-height: 1;
+}
+.icon-svg {
+  width: 32rpx;
+  height: 32rpx;
+  margin-right: 8rpx;
+  transform: translateY(1rpx);
 }
 </style>
